@@ -1,0 +1,35 @@
+# ============================================================
+# RAISE Module 3 — Data Analytics & Visualization (กรณีศึกษา "บ้านบรู")
+# ============================================================
+
+# วัสดุคอร์สต้นฉบับ — มีโน้ตผู้สอน/เฉลย และข้อมูลติดต่อผู้สอน ห้ามขึ้น GitHub
+ref/
+
+# ไฟล์ข้อมูลของคอร์ส (ลิขสิทธิ์ผู้สอน) — คัดลอกเข้า public/ เองในเครื่อง
+*.csv
+*.xlsx
+*.zip
+
+# Firebase service account key (Lab 3.1) — มีสิทธิ์เต็มฐานข้อมูล ห้ามหลุดเด็ดขาด
+# เก็บไว้นอก repo และอ่าน path จาก .env; ถ้าเผลอ push ต้องลบ key ใน Google Cloud Console ทันที
+*serviceAccount*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+
+# ค่าตั้งค่าในเครื่อง / ความลับ
+.env
+.env.*
+!.env.example
+*secret*
+*credential*
+
+# dependencies และผล build
+node_modules/
+dist/
+.firebase/
+
+# ระบบ
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
