@@ -20,9 +20,7 @@ ref/
 *secret*
 *credential*
 
-# dependencies และผล build
-node_modules/
-dist/
+# node_modules/ และ dist/ ขึ้น GitHub ด้วย (ผู้ใช้สั่ง 27 ก.ย.) — dist/ ต้อง `npm run build` ใหม่ก่อน commit ทุกครั้ง
 .firebase/
 
 # ระบบ
