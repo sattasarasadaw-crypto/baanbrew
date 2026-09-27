@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-**ไฟล์ข้อมูลไม่อยู่ใน repo** (ลิขสิทธิ์ของผู้สอน) ให้คัดลอก `sales.csv`, `products.csv`, `branches.csv` จากชุดข้อมูลของคอร์สไปไว้ที่ `baanbrew-dashboard/public/` ก่อนรัน
+ไฟล์ข้อมูล `sales.csv`, `products.csv`, `branches.csv` อยู่ใน `baanbrew-dashboard/public/` แล้ว (ข้อมูลสมมติของคอร์ส) — `sales.csv` ตรงกับไฟล์ต้นฉบับจากผู้สอนทุกไบต์
 
 ### ตรวจตัวเลข (Verify)
 
