@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
@@ -13,10 +14,13 @@ import {
   YAxis,
 } from 'recharts'
 import {
+  billsByHour,
+  billsPerDayByHourByBranch,
   computeKpis,
   dailyRevenue,
   formatBaht,
   formatBahtShort,
+  formatHour,
   formatNumber,
   formatThaiDate,
   movingAverage,
@@ -26,6 +30,8 @@ import {
 
 const BROWN = '#92400e' // amber-800
 const LIGHT_BROWN = '#fcd34d' // amber-300 — เส้นรายวันแบบจาง
+const HOUR_BAR = '#d97706' // amber-600 — แท่งชั่วโมงปกติ
+const PEAK_BAR = '#78350f' // amber-900 — แท่งชั่วโมงที่บิลมากที่สุด
 const SERIES_NAMES = { revenue: 'ยอดขายรายวัน', avg: 'ค่าเฉลี่ย 7 วัน' }
 
 // true เมื่อจอกว้างน้อยกว่า 640px (จุดเดียวกับ sm: ของ Tailwind) และอัปเดตเมื่อหมุนจอ/ย่อหน้าต่าง
@@ -60,6 +66,11 @@ export default function App() {
   const kpis = useMemo(() => rows && computeKpis(rows), [rows])
   const daily = useMemo(() => rows && movingAverage(dailyRevenue(rows), 7), [rows])
   const branches = useMemo(() => rows && revenueByBranch(rows), [rows])
+  const hourly = useMemo(() => rows && billsByHour(rows), [rows])
+  const hourlyByBranch = useMemo(
+    () => rows && billsPerDayByHourByBranch(rows, branches.map((b) => b.branch)),
+    [rows, branches],
+  )
 
   if (error) return <Status text={`อ่านไฟล์ไม่สำเร็จ: ${error}`} />
   if (!rows) return <Status text="กำลังโหลดข้อมูลยอดขาย…" />
@@ -142,7 +153,55 @@ export default function App() {
           </ResponsiveContainer>
         )}
       </Card>
+      <Card title="จำนวนบิลตามชั่วโมงของวัน (ทุกสาขา)">
+        <HourBars data={hourly} dataKey="bills" height={isMobile ? 220 : 260} isMobile={isMobile}
+          valueLabel="บิล" format={formatNumber} />
+      </Card>
+
+      <Card title="บิลเฉลี่ยต่อวันตามชั่วโมง แยกสาขา">
+        <p className="-mt-1 mb-3 text-xs text-stone-500">
+          หารด้วยจำนวนวันที่แต่ละสาขาเปิดขาย เพื่อเทียบกันได้ยุติธรรม (อารีย์เปิด 1 พ.ย. 68 จึงมีวันขายน้อยกว่าสาขาอื่น)
+          · แท่งสีเข้ม = ชั่วโมงที่บิลมากที่สุดของสาขานั้น · ทุกกราฟใช้สเกลแกน Y เดียวกัน
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {hourlyByBranch.map((b) => (
+            <div key={b.branch} className="min-w-0">
+              <h3 className="text-sm font-semibold text-stone-700">{b.branch}</h3>
+              <p className="mb-1 text-xs text-stone-500">
+                พีค {formatHour(b.peakHour)} · {b.peakPerDay.toFixed(1)} บิล/วัน · เปิดขาย {formatNumber(b.openDays)} วัน
+              </p>
+              <HourBars data={b.data} dataKey="perDay" height={170} isMobile={isMobile} compact
+                yMax={Math.ceil(Math.max(...hourlyByBranch.map((x) => x.peakPerDay)) * 2) / 2}
+                valueLabel="บิล/วัน" format={(v) => v.toFixed(2)} />
+            </div>
+          ))}
+        </div>
+      </Card>
     </main>
+  )
+}
+
+// กราฟแท่งตามชั่วโมง: แท่งที่ค่ามากที่สุดใช้สีเข้ม (ใช้ทั้งกราฟรวมและกราฟแยกสาขา)
+function HourBars({ data, dataKey, height, isMobile, compact = false, yMax, valueLabel, format }) {
+  const max = Math.max(...data.map((d) => d[dataKey]))
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke="#e7e5e4" vertical={false} />
+        <XAxis dataKey="hour" tickFormatter={(h) => (compact ? String(h) : formatHour(h))}
+          interval={compact || isMobile ? 1 : 0} tick={{ fontSize: compact ? 10 : isMobile ? 11 : 12 }} />
+        <YAxis domain={yMax ? [0, yMax] : [0, 'auto']} width={compact ? 28 : 48}
+          ticks={yMax ? Array.from({ length: yMax / 0.5 + 1 }, (_, i) => i * 0.5) : undefined}
+          tickFormatter={(v) => (compact ? String(v) : formatNumber(v))} tick={{ fontSize: compact ? 10 : 12 }} />
+        <Tooltip formatter={(v) => [format(v), valueLabel]} labelFormatter={(h) => `เวลา ${formatHour(h)}–${formatHour(h + 1)}`}
+          cursor={{ fill: '#fef3c7' }} />
+        <Bar dataKey={dataKey} radius={[3, 3, 0, 0]}>
+          {data.map((d) => (
+            <Cell key={d.hour} fill={d[dataKey] === max ? PEAK_BAR : HOUR_BAR} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   )
 }
 

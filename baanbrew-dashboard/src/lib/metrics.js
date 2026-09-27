@@ -9,6 +9,7 @@
 // - date ใช้ 10 ตัวอักษรแรกของ datetime ("2025-04-01") ไม่ผ่าน new Date()
 //   เพราะ toISOString() จะแปลงเป็นเวลา UTC ทำให้บิลก่อน 07:00 เลื่อนไปเป็นเมื่อวาน
 // - revenue คำนวณเก็บไว้ต่อแถวเลย จะได้ไม่ต้องคูณซ้ำทุกฟังก์ชัน
+// - hour ใช้ตัวอักษรที่ 12–13 ของ datetime ("2025-04-01T17:09:07+07:00" → 17) เป็นเวลาไทยอยู่แล้ว ไม่ผ่าน UTC
 export function prepareRows(rawRows) {
   return rawRows.map((r) => {
     const qty = Number(r.qty)
@@ -16,6 +17,7 @@ export function prepareRows(rawRows) {
     return {
       orderId: r.order_id,
       date: r.datetime.slice(0, 10),
+      hour: Number(r.datetime.slice(11, 13)),
       branch: r.branch,
       qty,
       unitPrice,
@@ -79,6 +81,59 @@ export function revenueByBranch(rows) {
     .map(([branch, revenue]) => ({ branch, revenue }))
     .sort((a, b) => b.revenue - a.revenue)
 }
+
+// ชั่วโมงทั้งหมดที่มีบิล ตั้งแต่ชั่วโมงแรกถึงชั่วโมงสุดท้ายแบบไม่ขาด (ชั่วโมงที่ไม่มีบิลจะได้ 0 ไม่หายไปจากแกน)
+function hourRange(rows) {
+  let min = 23
+  let max = 0
+  for (const r of rows) {
+    if (r.hour < min) min = r.hour
+    if (r.hour > max) max = r.hour
+  }
+  return Array.from({ length: max - min + 1 }, (_, i) => min + i)
+}
+
+// จำนวนบิลตามชั่วโมงของวัน (ทุกสาขารวมกัน)
+// - นับ order_id ที่ไม่ซ้ำในแต่ละชั่วโมง ไม่ใช่จำนวนแถว (บิล 3 รายการ = 1 บิล)
+// - ทุกแถวของบิลเดียวกันมีเวลาเดียวกัน บิลจึงอยู่ชั่วโมงเดียว ไม่ถูกนับซ้ำข้ามชั่วโมง
+export function billsByHour(rows) {
+  const byHour = new Map()
+  for (const r of rows) {
+    if (!byHour.has(r.hour)) byHour.set(r.hour, new Set())
+    byHour.get(r.hour).add(r.orderId)
+  }
+  return hourRange(rows).map((hour) => ({ hour, bills: byHour.get(hour)?.size ?? 0 }))
+}
+
+// บิลเฉลี่ยต่อวันตามชั่วโมง แยกสาขา — ใช้เทียบสาขาอย่างยุติธรรม
+// - perDay = จำนวนบิลในชั่วโมงนั้น ÷ จำนวนวันที่สาขานั้นเปิดขาย (วันที่มีบิลอย่างน้อย 1 บิล)
+// - ต้องหารด้วยวันของสาขาเอง เพราะอารีย์เปิด 1 พ.ย. 2025 มีวันขายน้อยกว่าสาขาอื่นเกือบครึ่ง
+//   ถ้าใช้จำนวนบิลรวม อารีย์จะดูเงียบกว่าความจริง
+// - เรียงสาขาตามลำดับที่ส่งมาใน branchOrder (ใช้ลำดับเดียวกับกราฟยอดขายแยกสาขา)
+export function billsPerDayByHourByBranch(rows, branchOrder) {
+  const hours = hourRange(rows)
+  const stats = new Map(branchOrder.map((b) => [b, { dates: new Set(), byHour: new Map() }]))
+  for (const r of rows) {
+    const s = stats.get(r.branch)
+    if (!s) continue
+    s.dates.add(r.date)
+    if (!s.byHour.has(r.hour)) s.byHour.set(r.hour, new Set())
+    s.byHour.get(r.hour).add(r.orderId)
+  }
+  return branchOrder.map((branch) => {
+    const { dates, byHour } = stats.get(branch)
+    const openDays = dates.size
+    const data = hours.map((hour) => {
+      const bills = byHour.get(hour)?.size ?? 0
+      return { hour, bills, perDay: openDays ? bills / openDays : 0 }
+    })
+    const peak = data.reduce((a, b) => (b.perDay > a.perDay ? b : a))
+    return { branch, openDays, data, peakHour: peak.hour, peakPerDay: peak.perDay }
+  })
+}
+
+// ชั่วโมงเป็นข้อความ: 8 → "08:00"
+export const formatHour = (h) => `${String(h).padStart(2, '0')}:00`
 
 // รูปแบบตัวเลข: มีจุลภาค เช่น 34,791
 const numberFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
