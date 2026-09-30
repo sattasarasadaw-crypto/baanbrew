@@ -6,6 +6,11 @@
 |---|---|---|
 | [`baanbrew-dashboard/`](baanbrew-dashboard/) | Lab 1 · Dashboard ยอดขาย (React + Vite + Tailwind v4 + Recharts + PapaParse) | ✅ |
 | [`homework-01-bills-by-hour.md`](homework-01-bills-by-hour.md) | การบ้านคาบ 1 · จำนวนบิลตามชั่วโมงแยกสาขา + ข้อสังเกต 5 ข้อ (กราฟอยู่ใน dashboard) | ✅ |
+| [`lab2.1-colab/`](lab2.1-colab/) | Lab 2.1 · Data profiling + ทำความสะอาด `sales_raw.csv` → `sales_clean.csv` (Colab notebook + log) | ✅ |
+| [`baanbrew-dashboard/src/lab2/`](baanbrew-dashboard/src/lab2/) | Lab 2.2 · ซ่อมกราฟแย่ 5 แบบ (`FixedCharts.jsx`) + ใบงาน [`LAB2_WORKSHEET.md`](baanbrew-dashboard/LAB2_WORKSHEET.md) | ✅ |
+| [`lab2-customers-colab/`](lab2-customers-colab/) | Data profiling ข้อมูลลูกค้า `customers.csv` → `customers_clean.csv` (Colab notebook, ตัดข้อมูลส่วนบุคคลตาม PDPA) + แท็บ "ลูกค้าสมาชิก" บน dashboard | ✅ |
+
+🌐 **เว็บที่ deploy:** https://baanbrew1002.vercel.app/ · แท็บ ภาพรวม / [ลูกค้าสมาชิก](https://baanbrew1002.vercel.app/#customers) / [Lab 2.2 · ซ่อมกราฟ](https://baanbrew1002.vercel.app/#lab2)
 
 ## Lab 1 · baanbrew-dashboard
 
@@ -13,6 +18,8 @@
 - กราฟเส้นยอดขายรายวัน + ค่าเฉลี่ย 7 วัน, วันที่ภาษาไทยบนแกน X
 - กราฟแท่งยอดขายแยกสาขา เรียงมาก → น้อย (มือถือเปลี่ยนเป็นแท่งแนวนอน)
 - จำนวนบิลตามชั่วโมง (ทุกสาขา) + บิลเฉลี่ยต่อวันตามชั่วโมงแยก 5 สาขา (สเกลเดียวกัน, แท่งเข้ม = ชั่วโมงพีค)
+- แท็บ **ลูกค้าสมาชิก**: KPI สมาชิก, สมาชิกใหม่รายเดือน (เดือนที่ข้อมูลไม่ครบเป็นสีอ่อน), ช่วงอายุ/เพศ, สาขาประจำ + % ที่ซื้อที่สาขาประจำ · อ่าน `public/customers.csv` ที่ไม่มี nickname/phone
+- ข้อมูลยอดขายใน `public/sales.csv` คือ `sales_clean.csv` จาก Lab 2.1
 - ตรรกะคำนวณทั้งหมดอยู่ที่ [`src/lib/metrics.js`](baanbrew-dashboard/src/lib/metrics.js)
 
 ### วิธีรัน

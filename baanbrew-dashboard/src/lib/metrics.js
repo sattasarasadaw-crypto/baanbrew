@@ -16,6 +16,7 @@ export function prepareRows(rawRows) {
     const unitPrice = Number(r.unit_price)
     return {
       orderId: r.order_id,
+      product_id: r.product_id, // ใช้ใน Lab 2.2 (src/lab2/lab2Metrics.js ใช้ชื่อช่องนี้)
       date: r.datetime.slice(0, 10),
       hour: Number(r.datetime.slice(11, 13)),
       branch: r.branch,
@@ -134,6 +135,116 @@ export function billsPerDayByHourByBranch(rows, branchOrder) {
 
 // ชั่วโมงเป็นข้อความ: 8 → "08:00"
 export const formatHour = (h) => `${String(h).padStart(2, '0')}:00`
+
+// ---------------------------------------------------------------
+// ข้อมูลลูกค้าสมาชิก (public/customers.csv = customers_clean.csv จาก Colab ที่ตัด nickname/phone ออกแล้ว)
+// ---------------------------------------------------------------
+export const AGE_ORDER = ['ต่ำกว่า 18', '18-24', '25-34', '35-44', '45-54', '55+']
+
+// แปลงแถวดิบของ customers.csv ให้พร้อมใช้ (ตัดช่องว่างกันไว้ แม้ไฟล์ที่ทำความสะอาดแล้วจะไม่มี)
+export function prepareCustomers(rawRows) {
+  return rawRows
+    .filter((c) => c.customer_id)
+    .map((c) => ({
+      customerId: c.customer_id.trim(),
+      gender: c.gender.trim(),
+      ageGroup: c.age_group.trim(),
+      homeBranchId: c.home_branch_id.trim(),
+      joinedDate: c.joined_date.trim(),
+    }))
+}
+
+// KPI ลูกค้า
+// - activeCount: สมาชิกที่มีบิลอย่างน้อย 1 บิลในยอดขาย (นับ customer_id ไม่ซ้ำ)
+// - memberShare: ยอดขายจากบิลของสมาชิก ÷ ยอดขายทั้งหมด
+// - avgMember / avgWalkin: ยอดเฉลี่ยต่อบิล แยกสมาชิกกับลูกค้าทั่วไป (ยอดรวม ÷ จำนวน order_id ไม่ซ้ำ)
+export function customerKpis(customers, rows) {
+  const active = new Set()
+  const memberBills = new Set()
+  const walkinBills = new Set()
+  let memberRevenue = 0
+  let walkinRevenue = 0
+  for (const r of rows) {
+    if (r.customerId) {
+      active.add(r.customerId)
+      memberBills.add(r.orderId)
+      memberRevenue += r.revenue
+    } else {
+      walkinBills.add(r.orderId)
+      walkinRevenue += r.revenue
+    }
+  }
+  return {
+    total: customers.length,
+    activeCount: active.size,
+    activeShare: customers.length ? active.size / customers.length : 0,
+    memberShare: memberRevenue / (memberRevenue + walkinRevenue),
+    avgMember: memberBills.size ? memberRevenue / memberBills.size : 0,
+    avgWalkin: walkinBills.size ? walkinRevenue / walkinBills.size : 0,
+  }
+}
+
+// สมาชิกใหม่รายเดือน (จาก joined_date) เรียงเก่า → ใหม่
+// - dataEnd = วันสุดท้ายของข้อมูล (YYYY-MM-DD) ใช้บอกว่าเดือนสุดท้ายมีข้อมูลกี่วัน
+// - partial = เดือนที่มีข้อมูลไม่ครบทั้งเดือน (ยอดรวมจะต่ำโดยธรรมชาติ ห้ามอ่านว่าสมัครน้อยลง)
+export function newMembersByMonth(customers, dataEnd) {
+  const byMonth = new Map()
+  for (const c of customers) {
+    const m = c.joinedDate.slice(0, 7)
+    byMonth.set(m, (byMonth.get(m) ?? 0) + 1)
+  }
+  const endMonth = dataEnd.slice(0, 7)
+  const endDay = Number(dataEnd.slice(8, 10))
+  return [...byMonth]
+    .map(([month, count]) => {
+      const [y, mo] = month.split('-').map(Number)
+      const full = new Date(y, mo, 0).getDate() // จำนวนวันในเดือนตามปฏิทิน
+      const days = month === endMonth ? endDay : full
+      return { month, count, days, full, partial: days < full }
+    })
+    .sort((a, b) => a.month.localeCompare(b.month))
+}
+
+// สมาชิกตามช่วงอายุ เรียงตามอายุ (ไม่เรียงตามจำนวน เพราะช่วงอายุมีลำดับในตัว)
+export function membersByAge(customers) {
+  const count = new Map(AGE_ORDER.map((a) => [a, 0]))
+  for (const c of customers) if (count.has(c.ageGroup)) count.set(c.ageGroup, count.get(c.ageGroup) + 1)
+  return AGE_ORDER.map((ageGroup) => ({ ageGroup, count: count.get(ageGroup) }))
+}
+
+// นับสมาชิกตามค่าของฟิลด์ (เช่น gender) เรียงมาก → น้อย
+export function countBy(customers, key) {
+  const m = new Map()
+  for (const c of customers) m.set(c[key], (m.get(c[key]) ?? 0) + 1)
+  return [...m].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count)
+}
+
+// สมาชิกตามสาขาประจำ + สัดส่วนบิลของสมาชิกที่ซื้อที่สาขาประจำตัวเอง
+// - branches มาจาก branches.csv (branch_id → ชื่อสาขา) · homeShare = บิลที่ซื้อที่สาขาประจำ ÷ บิลทั้งหมดของสมาชิกสาขานั้น
+export function membersByHomeBranch(customers, rows, branches) {
+  const name = Object.fromEntries(branches.map((b) => [b.branch_id, b.branch]))
+  const home = Object.fromEntries(customers.map((c) => [c.customerId, c.homeBranchId]))
+  const stat = new Map(branches.map((b) => [b.branch_id, { members: 0, bills: new Set(), atHome: new Set() }]))
+  for (const c of customers) if (stat.has(c.homeBranchId)) stat.get(c.homeBranchId).members += 1
+  for (const r of rows) {
+    const h = r.customerId && home[r.customerId]
+    if (!h || !stat.has(h)) continue
+    stat.get(h).bills.add(r.orderId)
+    if (r.branch === name[h]) stat.get(h).atHome.add(r.orderId)
+  }
+  return [...stat]
+    .map(([id, s]) => ({
+      branch: name[id], members: s.members,
+      homeShare: s.bills.size ? s.atHome.size / s.bills.size : 0,
+    }))
+    .sort((a, b) => b.members - a.members)
+}
+
+// เดือนภาษาไทยแบบย่อ: "2025-11" → "พ.ย. 68"
+export function formatThaiMonth(ym) {
+  const [y, m] = ym.split('-').map(Number)
+  return `${THAI_MONTHS[m - 1]} ${String((y + 543) % 100).padStart(2, '0')}`
+}
 
 // รูปแบบตัวเลข: มีจุลภาค เช่น 34,791
 const numberFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })

@@ -24,9 +24,12 @@ import {
   formatNumber,
   formatThaiDate,
   movingAverage,
+  prepareCustomers,
   prepareRows,
   revenueByBranch,
 } from './lib/metrics.js'
+import Lab2Page from './lab2/Lab2Page.jsx'
+import Customers from './Customers.jsx'
 
 const BROWN = '#92400e' // amber-800
 const LIGHT_BROWN = '#fcd34d' // amber-300 — เส้นรายวันแบบจาง
@@ -47,21 +50,84 @@ function useIsMobile() {
   return isMobile
 }
 
-export default function App() {
-  const [rows, setRows] = useState(null)
-  const [error, setError] = useState(null)
-  const isMobile = useIsMobile()
-
-  // อ่าน public/sales.csv ครั้งเดียวตอนเปิดหน้า
-  useEffect(() => {
-    Papa.parse('/sales.csv', {
+// อ่าน CSV จาก public/ ด้วย PapaParse (คืน Promise ของแถวดิบ)
+const loadCsv = (url) =>
+  new Promise((resolve, reject) =>
+    Papa.parse(url, {
       download: true,
       header: true,
       skipEmptyLines: true,
-      complete: (result) => setRows(prepareRows(result.data)),
-      error: (err) => setError(err.message),
-    })
+      complete: (result) => resolve(result.data),
+      error: (err) => reject(err),
+    }),
+  )
+
+const TABS = [
+  { id: 'overview', label: 'ภาพรวม' },
+  { id: 'customers', label: 'ลูกค้าสมาชิก' },
+  { id: 'lab2', label: 'Lab 2.2 · ซ่อมกราฟ' },
+]
+const tabFromHash = () => TABS.find((t) => `#${t.id}` === location.hash)?.id ?? 'overview'
+
+// หน้าหลัก: โหลด CSV ทั้ง 4 ไฟล์ครั้งเดียว แล้วสลับแท็บ ภาพรวม / ลูกค้าสมาชิก / Lab 2.2
+export default function App() {
+  const [rows, setRows] = useState(null)
+  const [products, setProducts] = useState(null)
+  const [customers, setCustomers] = useState(null)
+  const [branches, setBranches] = useState(null)
+  const [error, setError] = useState(null)
+  const [tab, setTab] = useState(tabFromHash)
+
+  useEffect(() => {
+    Promise.all([loadCsv('/sales.csv'), loadCsv('/products.csv'), loadCsv('/customers.csv'), loadCsv('/branches.csv')])
+      .then(([sales, prods, custs, brs]) => {
+        setRows(prepareRows(sales))
+        setProducts(prods)
+        setCustomers(prepareCustomers(custs))
+        setBranches(brs)
+      })
+      .catch((e) => setError(e.message ?? String(e)))
   }, [])
+
+  const choose = (id) => {
+    setTab(id)
+    history.replaceState(null, '', id === 'overview' ? '#' : `#${id}`)
+  }
+
+  if (error) return <Status text={`อ่านไฟล์ไม่สำเร็จ: ${error} · ตรวจว่ามี sales.csv, products.csv, customers.csv, branches.csv ใน public/`} />
+  if (!rows) return <Status text="กำลังโหลดข้อมูลยอดขาย…" />
+
+  return (
+    <div className="min-h-screen bg-amber-50">
+      <nav className="sticky top-0 z-10 border-b border-amber-200 bg-amber-50/95 backdrop-blur">
+        <div className="flex gap-1 px-4 py-2 sm:px-8">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => choose(t.id)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                tab === t.id ? 'bg-amber-800 text-white' : 'text-stone-600 hover:bg-amber-100'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+      {tab === 'overview' && <Overview rows={rows} />}
+      {tab === 'customers' && <Customers rows={rows} customers={customers} branches={branches} />}
+      {tab === 'lab2' && (
+        <div className="p-4 text-stone-800 sm:p-8">
+          <Lab2Page rows={rows} products={products} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// แท็บภาพรวม (Dashboard ของ Lab 1 + การบ้าน) — รับ rows ที่ผ่าน prepareRows แล้ว
+function Overview({ rows }) {
+  const isMobile = useIsMobile()
 
   const kpis = useMemo(() => rows && computeKpis(rows), [rows])
   const daily = useMemo(() => rows && movingAverage(dailyRevenue(rows), 7), [rows])
@@ -71,9 +137,6 @@ export default function App() {
     () => rows && billsPerDayByHourByBranch(rows, branches.map((b) => b.branch)),
     [rows, branches],
   )
-
-  if (error) return <Status text={`อ่านไฟล์ไม่สำเร็จ: ${error}`} />
-  if (!rows) return <Status text="กำลังโหลดข้อมูลยอดขาย…" />
 
   // บนมือถือ: แกนใช้เงินแบบสั้น (฿20K) และแคบลง เพื่อเหลือพื้นที่ให้กราฟ
   const axisMoney = isMobile ? formatBahtShort : (v) => formatBaht(v)
