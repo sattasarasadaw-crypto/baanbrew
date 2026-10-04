@@ -20,3 +20,11 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Firebase (Lab 3) — key มีสิทธิ์ทำทุกอย่างกับฐานข้อมูล ห้ามขึ้น GitHub
+.env
+.env.local
+secrets/
+import-summary.json
+.firebase/
+*-firebase-adminsdk-*.json

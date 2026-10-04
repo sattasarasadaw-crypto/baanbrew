@@ -30,6 +30,11 @@ import {
 } from './lib/metrics.js'
 import Lab2Page from './lab2/Lab2Page.jsx'
 import Customers from './Customers.jsx'
+import KpiCard from './components/KpiCard.jsx'
+import LiveTab from './lab3/LiveTab.jsx'
+import RulesTester from './lab3/RulesTester.jsx'
+import SetupGuide from './lab3/SetupGuide.jsx'
+import { isConfigured } from './lab3/firebase.js'
 
 const BROWN = '#92400e' // amber-800
 const LIGHT_BROWN = '#fcd34d' // amber-300 — เส้นรายวันแบบจาง
@@ -66,6 +71,8 @@ const TABS = [
   { id: 'overview', label: 'ภาพรวม' },
   { id: 'customers', label: 'ลูกค้าสมาชิก' },
   { id: 'lab2', label: 'Lab 2.2 · ซ่อมกราฟ' },
+  { id: 'live', label: 'สด · Firestore' },
+  { id: 'rules', label: 'ทดสอบ Rules' },
 ]
 const tabFromHash = () => TABS.find((t) => `#${t.id}` === location.hash)?.id ?? 'overview'
 
@@ -100,12 +107,12 @@ export default function App() {
   return (
     <div className="min-h-screen bg-amber-50">
       <nav className="sticky top-0 z-10 border-b border-amber-200 bg-amber-50/95 backdrop-blur">
-        <div className="flex gap-1 px-4 py-2 sm:px-8">
+        <div className="flex gap-1 overflow-x-auto px-4 py-2 sm:px-8">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => choose(t.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium ${
+              className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium ${
                 tab === t.id ? 'bg-amber-800 text-white' : 'text-stone-600 hover:bg-amber-100'
               }`}
             >
@@ -119,6 +126,12 @@ export default function App() {
       {tab === 'lab2' && (
         <div className="p-4 text-stone-800 sm:p-8">
           <Lab2Page rows={rows} products={products} />
+        </div>
+      )}
+      {/* Lab 3: แท็บสดและทดสอบ Rules ใช้ข้อมูลจาก Firestore ไม่ใช่ CSV · ถ้ายังไม่มี .env แสดงวิธีตั้งค่า */}
+      {(tab === 'live' || tab === 'rules') && (
+        <div className="p-4 text-stone-800 sm:p-8">
+          {!isConfigured ? <SetupGuide /> : tab === 'live' ? <LiveTab /> : <RulesTester />}
         </div>
       )}
     </div>
@@ -265,16 +278,6 @@ function HourBars({ data, dataKey, height, isMobile, compact = false, yMax, valu
         </Bar>
       </BarChart>
     </ResponsiveContainer>
-  )
-}
-
-function KpiCard({ label, value }) {
-  return (
-    <div className="min-w-0 rounded-xl bg-white p-3 shadow-sm ring-1 ring-amber-100 sm:p-4">
-      <div className="text-xs text-stone-500 sm:text-sm">{label}</div>
-      {/* มือถือตัวเล็กลงนิด (text-lg) เพื่อให้ ฿4,466,821 ไม่ล้นการ์ดบนจอแคบ 320px */}
-      <div className="mt-1 text-lg font-bold tabular-nums text-amber-900 sm:text-2xl">{value}</div>
-    </div>
   )
 }
 

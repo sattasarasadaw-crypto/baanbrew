@@ -106,6 +106,16 @@ export function billsByHour(rows) {
   return hourRange(rows).map((hour) => ({ hour, bills: byHour.get(hour)?.size ?? 0 }))
 }
 
+// ยอดขายตามชั่วโมงของวัน (บาท) — ใช้กับกราฟช่วง "วันนี้" ของหน้าสด (Lab 3.2)
+// - รวม revenue ตามชั่วโมง และเติม 0 ให้ชั่วโมงที่ไม่มีขายระหว่างชั่วโมงแรกถึงสุดท้าย แกนจึงไม่ขาด
+// - ไม่มีข้อมูลเลย → คืน [] (hourRange ของข้อมูลว่างใช้ไม่ได้)
+export function revenueByHour(rows) {
+  if (!rows.length) return []
+  const byHour = new Map()
+  for (const r of rows) byHour.set(r.hour, (byHour.get(r.hour) ?? 0) + r.revenue)
+  return hourRange(rows).map((hour) => ({ hour, revenue: byHour.get(hour) ?? 0 }))
+}
+
 // บิลเฉลี่ยต่อวันตามชั่วโมง แยกสาขา — ใช้เทียบสาขาอย่างยุติธรรม
 // - perDay = จำนวนบิลในชั่วโมงนั้น ÷ จำนวนวันที่สาขานั้นเปิดขาย (วันที่มีบิลอย่างน้อย 1 บิล)
 // - ต้องหารด้วยวันของสาขาเอง เพราะอารีย์เปิด 1 พ.ย. 2025 มีวันขายน้อยกว่าสาขาอื่นเกือบครึ่ง
