@@ -9,10 +9,9 @@
 | [`lab2.1-colab/`](lab2.1-colab/) | Lab 2.1 · Data profiling + ทำความสะอาด `sales_raw.csv` → `sales_clean.csv` (Colab notebook + log) | ✅ |
 | [`baanbrew-dashboard/src/lab2/`](baanbrew-dashboard/src/lab2/) | Lab 2.2 · ซ่อมกราฟแย่ 5 แบบ (`FixedCharts.jsx`) + ใบงาน [`LAB2_WORKSHEET.md`](baanbrew-dashboard/LAB2_WORKSHEET.md) | ✅ |
 | [`lab2-customers-colab/`](lab2-customers-colab/) | Data profiling ข้อมูลลูกค้า `customers.csv` → `customers_clean.csv` (Colab notebook, ตัดข้อมูลส่วนบุคคลตาม PDPA) + แท็บ "ลูกค้าสมาชิก" บน dashboard | ✅ |
+| [`baanbrew-dashboard/`](baanbrew-dashboard/) (Lab 3) | Lab 3 · Firebase project + นำเข้า 9,704 เอกสาร (`verify-import` ผ่าน) · Dashboard real-time (`onSnapshot`) + ฟอร์มบันทึกยอดขาย · Google login + Security Rules (แท็บ "ทดสอบ Rules" เขียวทุกข้อ) · `npm test` 24/24 · ขั้นตอนใน [`LAB3_GUIDE.md`](baanbrew-dashboard/LAB3_GUIDE.md) | ✅ |
 
-| [`baanbrew-dashboard/`](baanbrew-dashboard/) (Lab 3) | Lab 3 · Firestore แบบ real-time + ฟอร์มบันทึกยอดขาย + Google login + Security Rules — โค้ดและ test เสร็จ (`npm test` 24/24) · รอตั้งค่า Firebase project ตาม [`LAB3_GUIDE.md`](baanbrew-dashboard/LAB3_GUIDE.md) | 🟡 |
-
-🌐 **เว็บที่ deploy:** https://baanbrew1002.vercel.app/ · แท็บ ภาพรวม / [ลูกค้าสมาชิก](https://baanbrew1002.vercel.app/#customers) / [Lab 2.2 · ซ่อมกราฟ](https://baanbrew1002.vercel.app/#lab2)
+🌐 **เว็บที่ deploy:** https://baanbrew1002.vercel.app/ · แท็บ ภาพรวม / [ลูกค้าสมาชิก](https://baanbrew1002.vercel.app/#customers) / [Lab 2.2 · ซ่อมกราฟ](https://baanbrew1002.vercel.app/#lab2) / สด · Firestore (ล็อกอินด้วย Google) / ทดสอบ Rules · ตั้งค่า `VITE_FIREBASE_*` ใน Vercel แล้ว และเพิ่มโดเมนนี้ใน Firebase Authorized domains
 
 ## Lab 1 · baanbrew-dashboard
 
