@@ -24,6 +24,11 @@ export function prepareRows(rawRows) {
       unitPrice,
       revenue: qty * unitPrice,
       customerId: r.customer_id?.trim() || null,
+      // Day 4: src/lib/analytics/ และ scripts/build-analytics.mjs อ่านชื่อช่องแบบ snake_case เหมือนไฟล์ CSV
+      // (เพิ่มอย่างเดียว ชื่อช่องเดิมของ Day 1–3 ไม่เปลี่ยน) · customer_id ว่าง = walk-in ไม่ใช่สมาชิก
+      order_id: r.order_id,
+      customer_id: r.customer_id?.trim() ?? '',
+      datetime: r.datetime,
     }
   })
 }
@@ -287,3 +292,9 @@ export const formatBaht = (n, decimals = 0) =>
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(n)
+
+// Day 4: src/lab4/ (CustomersTab, ForecastTab) เรียกชื่อ fmtBaht / fmtShortBaht
+// fmtShortBaht ใช้ "ล." และ "k" ตามชุด Day 4 (ต่างจาก formatBahtShort ที่ใช้ M/K ของ Day 2)
+export const fmtBaht = (n) => formatBaht(n)
+export const fmtShortBaht = (n) =>
+  n >= 1_000_000 ? `฿${(n / 1_000_000).toFixed(1)} ล.` : n >= 1000 ? `฿${(n / 1000).toFixed(0)}k` : `฿${n}`

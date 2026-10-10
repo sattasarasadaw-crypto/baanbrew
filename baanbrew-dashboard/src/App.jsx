@@ -35,6 +35,12 @@ import LiveTab from './lab3/LiveTab.jsx'
 import RulesTester from './lab3/RulesTester.jsx'
 import SetupGuide from './lab3/SetupGuide.jsx'
 import { isConfigured } from './lab3/firebase.js'
+import CustomersTab from './lab4/CustomersTab.jsx'
+import ForecastTab from './lab4/ForecastTab.jsx'
+import { firestoreSource, createDemoSource } from './lab4/dataSource.js'
+
+// Day 4: เปิด http://localhost:5173/?demo เพื่อคำนวณผลวิเคราะห์ในเบราว์เซอร์จาก CSV (ไม่ใช้โควตา Firebase)
+const DEMO = new URLSearchParams(location.search).has('demo')
 
 const BROWN = '#92400e' // amber-800
 const LIGHT_BROWN = '#fcd34d' // amber-300 — เส้นรายวันแบบจาง
@@ -72,6 +78,9 @@ const TABS = [
   { id: 'customers', label: 'ลูกค้าสมาชิก' },
   { id: 'lab2', label: 'Lab 2.2 · ซ่อมกราฟ' },
   { id: 'live', label: 'สด · Firestore' },
+  // Day 4: id 'customers' ถูกใช้แล้วโดยแท็บ "ลูกค้าสมาชิก" ของ Day 2 จึงใช้ 'segments' กับแท็บ "ลูกค้า & เมนู"
+  { id: 'segments', label: 'ลูกค้า & เมนู' },
+  { id: 'forecast', label: 'พยากรณ์ & ผิดปกติ' },
   { id: 'rules', label: 'ทดสอบ Rules' },
 ]
 const tabFromHash = () => TABS.find((t) => `#${t.id}` === location.hash)?.id ?? 'overview'
@@ -82,19 +91,30 @@ export default function App() {
   const [products, setProducts] = useState(null)
   const [customers, setCustomers] = useState(null)
   const [branches, setBranches] = useState(null)
+  const [holidays, setHolidays] = useState({})
   const [error, setError] = useState(null)
   const [tab, setTab] = useState(tabFromHash)
 
   useEffect(() => {
-    Promise.all([loadCsv('/sales.csv'), loadCsv('/products.csv'), loadCsv('/customers.csv'), loadCsv('/branches.csv')])
-      .then(([sales, prods, custs, brs]) => {
+    Promise.all([
+      loadCsv('/sales.csv'), loadCsv('/products.csv'), loadCsv('/customers.csv'), loadCsv('/branches.csv'),
+      loadCsv('/thai_holidays.csv').catch(() => []), // วันหยุดราชการ (Day 4) · ไม่มีไฟล์ก็ไม่ทำให้ทั้งหน้าพัง
+    ])
+      .then(([sales, prods, custs, brs, hol]) => {
         setRows(prepareRows(sales))
         setProducts(prods)
         setCustomers(prepareCustomers(custs))
         setBranches(brs)
+        setHolidays(Object.fromEntries(hol.map((h) => [h.date, h.holiday])))
       })
       .catch((e) => setError(e.message ?? String(e)))
   }, [])
+
+  // Day 4: แท็บวิเคราะห์อ่านผลสรุป 5 เอกสารผ่าน source (Firestore จริง หรือโหมดสาธิตที่คำนวณจาก CSV)
+  const source = useMemo(() => {
+    if (DEMO) return rows && products ? createDemoSource(rows, products, holidays) : null
+    return isConfigured ? firestoreSource : null
+  }, [rows, products, holidays])
 
   const choose = (id) => {
     setTab(id)
@@ -132,6 +152,12 @@ export default function App() {
       {(tab === 'live' || tab === 'rules') && (
         <div className="p-4 text-stone-800 sm:p-8">
           {!isConfigured ? <SetupGuide /> : tab === 'live' ? <LiveTab /> : <RulesTester />}
+        </div>
+      )}
+      {/* Day 4: ผลวิเคราะห์จาก collection analytics (หรือโหมดสาธิต ?demo) */}
+      {(tab === 'segments' || tab === 'forecast') && (
+        <div className="p-4 text-stone-800 sm:p-8">
+          {!source ? (DEMO ? null : <SetupGuide />) : tab === 'segments' ? <CustomersTab source={source} /> : <ForecastTab source={source} />}
         </div>
       )}
     </div>
