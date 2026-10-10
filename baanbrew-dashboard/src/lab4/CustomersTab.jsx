@@ -1,5 +1,5 @@
 // Lab 4.1–4.2 · ลูกค้าและเมนู: RFM, Cohort, ABC
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LabelList, Cell, ReferenceLine,
@@ -52,6 +52,75 @@ function RfmCard({ rfm, onPick, picked }) {
                 <td className="text-right tabular-nums">{d.customers.toLocaleString()}</td>
                 <td className="text-right tabular-nums">{fmtBaht(d.revenue)}</td>
                 <td className="pl-4 text-stone-600">{SEG_TH[d.segment].action}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------- รายชื่อลูกค้าในกลุ่มที่คลิก (Lab 4.1B) ----------------
+const TOP_N = 15;
+const csvCell = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+
+/** สร้างไฟล์ CSV ทั้งกลุ่มแล้วให้เบราว์เซอร์ดาวน์โหลด · ใส่ BOM (﻿) เพื่อให้ Excel อ่านภาษาไทยถูก */
+function downloadCsv(filename, header, rows) {
+  const text = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob(["﻿" + text], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function SegmentList({ rfm, picked, onClose }) {
+  // เรียงตามยอดซื้อรวมมากไปน้อย (ยอดเท่ากันเรียงตามรหัสให้ผลคงที่)
+  const members = useMemo(
+    () => rfm.customers.filter((c) => c.segment === picked).sort((a, b) => b.M - a.M || a.id.localeCompare(b.id)),
+    [rfm, picked],
+  );
+  const seg = SEG_TH[picked];
+  const exportCsv = () =>
+    downloadCsv(
+      `rfm-${picked.toLowerCase().replace(/\s+/g, "-")}.csv`,
+      ["รหัสลูกค้า", "กลุ่ม", "ไม่ได้มากี่วัน", "จำนวนบิล", "ยอดซื้อ", "คะแนน R", "คะแนน F", "คะแนน M"],
+      members.map((c) => [c.id, seg.th, c.R, c.F, c.M, c.r, c.f, c.m]),
+    );
+  return (
+    <Card
+      title={`รายชื่อ: ${seg.th} (${members.length.toLocaleString()} คน)`}
+      sub={`เรียงตามยอดซื้อรวม มาก → น้อย · แสดง ${Math.min(TOP_N, members.length)} คนแรก · ควรทำ: ${seg.action}`}
+      right={
+        <div className="flex gap-2">
+          <button onClick={exportCsv} className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-700">
+            ดาวน์โหลด CSV ({members.length.toLocaleString()} แถว)
+          </button>
+          <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-stone-600 ring-1 ring-stone-300 hover:bg-stone-100">ปิด</button>
+        </div>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead className="text-left text-stone-500">
+            <tr>
+              <th className="py-1 font-medium">รหัส</th>
+              <th className="text-right font-medium">ไม่ได้มา (วัน)</th>
+              <th className="text-right font-medium">จำนวนบิล</th>
+              <th className="text-right font-medium">ยอดซื้อ</th>
+              <th className="text-center font-medium">คะแนน R-F-M</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.slice(0, TOP_N).map((c) => (
+              <tr key={c.id} className="border-t border-stone-100">
+                <td className="py-1.5 font-mono">{c.id}</td>
+                <td className="text-right tabular-nums">{c.R.toLocaleString()}</td>
+                <td className="text-right tabular-nums">{c.F.toLocaleString()}</td>
+                <td className="text-right tabular-nums">{fmtBaht(c.M)}</td>
+                <td className="text-center tabular-nums">{c.r}-{c.f}-{c.m}</td>
               </tr>
             ))}
           </tbody>
@@ -159,7 +228,8 @@ export default function CustomersTab({ source }) {
       {(d) => (
         <div className="space-y-6">
           <RfmCard rfm={d.rfm} picked={picked} onPick={(s) => setPicked((p) => (p === s ? null : s))} />
-          {/* Lab 4.1B: แสดงรายชื่อลูกค้าในกลุ่มที่คลิก (picked) + ปุ่มดาวน์โหลด CSV */}
+          {/* Lab 4.1B: รายชื่อลูกค้าในกลุ่มที่คลิก (picked) + ปุ่มดาวน์โหลด CSV */}
+          {picked && !d.rfm.error && <SegmentList rfm={d.rfm} picked={picked} onClose={() => setPicked(null)} />}
           <CohortCard cohort={d.cohort} />
           <AbcCard abc={d.abc} />
         </div>
