@@ -2,12 +2,13 @@
 // คำนวณในเบราว์เซอร์จาก analytics/daily (ยอดรายวันแยกสาขา ~2,700 แถว) จึงเปลี่ยนสาขาได้ทันทีโดยไม่อ่าน Firestore เพิ่ม
 import { useMemo, useState } from "react";
 import {
-  ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
+  ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ReferenceDot,
 } from "recharts";
 import { AnalyticsShell, Card, Pending, Insight, MAIN, GREEN, MUTED, INK, thaiDay } from "./ui.jsx";
 import { useAnalytics } from "./useAnalytics.js";
 import { toSeries } from "../lib/analytics/daily.js";
-import { seasonalForecast, backtest } from "../lib/analytics/forecast.js";
+import { seasonalForecast, backtest, toWeeks, mape } from "../lib/analytics/forecast.js";
+import { addDays } from "../lab3/time.js";
 import { scoreAnomalies } from "../lib/analytics/anomaly.js";
 import { fmtBaht, fmtShortBaht } from "../lib/metrics.js";
 
@@ -18,6 +19,7 @@ const tryRun = (f) => { try { return { value: f() }; } catch (e) { return { erro
 
 function ForecastCard({ daily }) {
   const [branch, setBranch] = useState(null);
+  const [view, setView] = useState("day"); // Lab 4.4B: "day" รายวัน · "week" รายสัปดาห์ (จันทร์–อาทิตย์)
   const result = useMemo(() => tryRun(() => {
     const series = toSeries(daily, branch);
     const bt = backtest(series, HORIZON);
@@ -30,42 +32,82 @@ function ForecastCard({ daily }) {
     ];
     chart[recent.length - 1] = { ...chart[recent.length - 1], forecast: last.revenue }; // ต่อเส้นให้ไม่ขาด
     const next7 = fc.slice(0, 7).reduce((s, f) => s + f.forecast, 0);
-    return { bt, chart, next7, lastDate: last.date };
+
+    // รายสัปดาห์: รวมเฉพาะสัปดาห์ที่มีครบ 7 วัน แล้ววัด MAPE ด้วยฟังก์ชัน mape เดิม
+    const testW = toWeeks(bt.test, ["actual", "seasonal", "flat"]);
+    const actualW = toWeeks(series.slice(-63), ["revenue"]).slice(-8);
+    const fcW = toWeeks(fc, ["forecast"]);
+    const week = {
+      n: testW.length,
+      mapeSeasonal: mape(testW.map((w) => w.actual), testW.map((w) => w.seasonal)),
+      mapeFlat: mape(testW.map((w) => w.actual), testW.map((w) => w.flat)),
+      next: fcW[0]?.forecast ?? null,
+      lastDate: actualW.at(-1)?.weekStart,
+      chart: [
+        ...actualW.map((w) => ({ date: w.weekStart, actual: w.revenue })),
+        ...fcW.map((w) => ({ date: w.weekStart, forecast: w.forecast })),
+      ],
+    };
+    if (actualW.length) week.chart[actualW.length - 1] = { ...week.chart[actualW.length - 1], forecast: actualW.at(-1).revenue };
+    return { bt, chart, next7, lastDate: last.date, week };
   }), [daily, branch]);
 
   const r = result.value;
+  const weekly = view === "week" && r?.week.n > 0;
   return (
     <Card title="พยากรณ์ยอดขาย 28 วัน" sub="ค่าเฉลี่ยวันเดียวกันของสัปดาห์ 8 สัปดาห์ล่าสุด · แถบ = ช่วงที่คาดว่าครอบคลุมราว 80% ของวัน"
-          right={<div className="flex flex-wrap gap-1">
-            {[null, ...BRANCHES].map((b) => (
-              <button key={b ?? "all"} onClick={() => setBranch(b)}
-                      className={`rounded-lg px-2.5 py-1 text-sm ${branch === b ? "bg-stone-900 text-white" : "text-stone-600 ring-1 ring-stone-200"}`}>{b ?? "รวม"}</button>
-            ))}
+          right={<div className="flex flex-col items-end gap-1.5">
+            <div className="flex flex-wrap justify-end gap-1">
+              {[null, ...BRANCHES].map((b) => (
+                <button key={b ?? "all"} onClick={() => setBranch(b)}
+                        className={`rounded-lg px-2.5 py-1 text-sm ${branch === b ? "bg-stone-900 text-white" : "text-stone-600 ring-1 ring-stone-200"}`}>{b ?? "รวม"}</button>
+              ))}
+            </div>
+            {/* Lab 4.4B: สลับมุมมองรายวัน / รายสัปดาห์ (จันทร์–อาทิตย์) */}
+            <div className="flex gap-1" role="group" aria-label="มุมมองพยากรณ์">
+              {[["day", "รายวัน"], ["week", "รายสัปดาห์"]].map(([v, label]) => (
+                <button key={v} onClick={() => setView(v)} aria-pressed={view === v}
+                        className={`rounded-lg px-2.5 py-1 text-sm ${view === v ? "bg-emerald-700 text-white" : "text-stone-600 ring-1 ring-stone-200"}`}>{label}</button>
+              ))}
+            </div>
           </div>}>
       {result.error ? <Pending lab="Lab 4.4" error={result.error} /> : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Stat label="คาดการณ์ 7 วันข้างหน้า" value={fmtBaht(r.next7)} />
-            <Stat label="ย้อนทดสอบ 28 วัน: คลาดเคลื่อนเฉลี่ยต่อวัน" value={`${r.bt.mapeSeasonal.toFixed(1)}%`} note="วิธีดูวันในสัปดาห์" />
-            <Stat label="ถ้าใช้ค่าเฉลี่ย 28 วันเส้นตรง" value={`${r.bt.mapeFlat.toFixed(1)}%`} note="ตัวเปรียบเทียบ" muted />
-          </div>
+          {weekly ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Stat label="คาดการณ์สัปดาห์หน้า (จ.–อา.)" value={r.week.next == null ? "–" : fmtBaht(r.week.next)} />
+              <Stat label={`ย้อนทดสอบ ${r.week.n} สัปดาห์: คลาดเคลื่อนเฉลี่ยต่อสัปดาห์`} value={`${r.week.mapeSeasonal.toFixed(1)}%`}
+                    note={`เทียบรายวัน ${r.bt.mapeSeasonal.toFixed(1)}%`} />
+              <Stat label="ถ้าใช้ค่าเฉลี่ย 28 วันเส้นตรง (รายสัปดาห์)" value={`${r.week.mapeFlat.toFixed(1)}%`} note={`เทียบรายวัน ${r.bt.mapeFlat.toFixed(1)}%`} muted />
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Stat label="คาดการณ์ 7 วันข้างหน้า" value={fmtBaht(r.next7)} />
+              <Stat label="ย้อนทดสอบ 28 วัน: คลาดเคลื่อนเฉลี่ยต่อวัน" value={`${r.bt.mapeSeasonal.toFixed(1)}%`} note="วิธีดูวันในสัปดาห์" />
+              <Stat label="ถ้าใช้ค่าเฉลี่ย 28 วันเส้นตรง" value={`${r.bt.mapeFlat.toFixed(1)}%`} note="ตัวเปรียบเทียบ" muted />
+            </div>
+          )}
           <div className="mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={r.chart} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+              <ComposedChart data={weekly ? r.week.chart : r.chart} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="#eee" />
                 <XAxis dataKey="date" tickFormatter={shortDay} minTickGap={36} tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={fmtShortBaht} width={56} domain={[0, "auto"]} tick={{ fontSize: 12 }} />
-                <Tooltip labelFormatter={thaiDay} formatter={(v, n) => [Array.isArray(v) ? `${fmtBaht(v[0])} – ${fmtBaht(v[1])}` : fmtBaht(v), n]} />
+                <Tooltip labelFormatter={weekly ? (d) => `สัปดาห์ ${thaiDay(d)} – ${thaiDay(addDays(d, 6))}` : thaiDay}
+                         formatter={(v, n) => [Array.isArray(v) ? `${fmtBaht(v[0])} – ${fmtBaht(v[1])}` : fmtBaht(v), n]} />
                 <Legend wrapperStyle={{ fontSize: 13 }} />
-                <ReferenceLine x={r.lastDate} stroke={MUTED} strokeDasharray="3 3" label={{ value: "ข้อมูลถึง", position: "insideTopLeft", fontSize: 11, fill: INK }} />
-                <Area name="ช่วงคาดการณ์" dataKey="band" stroke="none" fill={GREEN[1]} isAnimationActive={false} />
+                <ReferenceLine x={weekly ? r.week.lastDate : r.lastDate} stroke={MUTED} strokeDasharray="3 3" label={{ value: "ข้อมูลถึง", position: "insideTopLeft", fontSize: 11, fill: INK }} />
+                {/* แถบ 80% คำนวณจากความคลาดเคลื่อนรายวัน จึงแสดงเฉพาะมุมมองรายวัน (รายสัปดาห์ทดสอบได้แค่ไม่กี่สัปดาห์ ประมาณแถบไม่ได้) */}
+                {!weekly && <Area name="ช่วงคาดการณ์" dataKey="band" stroke="none" fill={GREEN[1]} isAnimationActive={false} />}
                 <Line name="ยอดจริง" dataKey="actual" stroke={INK} strokeWidth={2} dot={false} isAnimationActive={false} />
                 <Line name="คาดการณ์" dataKey="forecast" stroke={MAIN} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
           <Insight>
-            {r.bt.mapeFlat > r.bt.mapeSeasonal * 1.5
+            {weekly
+              ? `${branch ?? "ภาพรวม"}: รวมเป็นรายสัปดาห์แล้วคลาดเคลื่อนเฉลี่ย ${r.week.mapeSeasonal.toFixed(1)}% เทียบกับรายวัน ${r.bt.mapeSeasonal.toFixed(1)}% ส่วนหนึ่งเพราะวันที่สูงกว่าคาดกับต่ำกว่าคาดหักล้างกันเมื่อรวมเป็นสัปดาห์ · วัดจากแค่ ${r.week.n} สัปดาห์ ยังน้อยมาก อย่าใช้เป็นข้อสรุปเด็ดขาด`
+              : r.bt.mapeFlat > r.bt.mapeSeasonal * 1.5
               ? `${branch ?? "ภาพรวม"}: การดูวันในสัปดาห์ช่วยลดความคลาดเคลื่อนจาก ${r.bt.mapeFlat.toFixed(0)}% เหลือ ${r.bt.mapeSeasonal.toFixed(0)}% เพราะยอดวันธรรมดากับเสาร์-อาทิตย์ต่างกันมาก`
               : `${branch ?? "ภาพรวม"}: สองวิธีแม่นพอ ๆ กัน (${r.bt.mapeSeasonal.toFixed(0)}% กับ ${r.bt.mapeFlat.toFixed(0)}%) ${branch ? "" : "เพราะสาขาออฟฟิศกับห้างขายดีคนละวัน พอรวมกันรูปแบบรายสัปดาห์จึงหักล้างกัน"}`}
             {" "}ใช้วางแผนสต็อกและกะพนักงานรายสัปดาห์ได้ แต่ไม่ควรใช้ตัดสินยอดรายวันของสาขาเดียว
@@ -86,6 +128,46 @@ function Stat({ label, value, note, muted }) {
   );
 }
 
+// Lab 4.5B · ซูมวันที่คลิก: ยอดจริงของสาขานั้น ±28 วัน เทียบกับ "ค่าปกติ" (expected จาก scoreAnomalies)
+const LOW = "#b91c1c";  // แดง = ต่ำกว่าปกติ
+const HIGH = "#ea580c"; // ส้ม = สูงกว่าปกติ
+function ZoomChart({ focus, daily, all, onClose }) {
+  const data = useMemo(() => {
+    const expected = new Map(all.filter((a) => a.branch === focus.branch).map((a) => [a.date, a.expected]));
+    const from = addDays(focus.date, -28);
+    const to = addDays(focus.date, 28);
+    return toSeries(daily, focus.branch)
+      .filter((s) => s.date >= from && s.date <= to)
+      .map((s) => ({ date: s.date, actual: s.revenue, expected: expected.get(s.date) ?? null }));
+  }, [focus, daily, all]);
+  const color = focus.change < 0 ? LOW : HIGH;
+  return (
+    <div className="mb-4 rounded-lg bg-stone-50 p-3" role="region" aria-label="ซูมวันผิดปกติ">
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm">
+          <span className="font-semibold">{focus.branch} · {thaiDay(focus.date)}</span>
+          <span className="text-stone-500"> · ±28 วันรอบวันที่เลือก · จริง {fmtBaht(focus.actual)} เทียบปกติ {fmtBaht(focus.expected)}</span>
+        </div>
+        <button onClick={onClose} className="shrink-0 rounded-lg px-3 py-1 text-sm text-stone-600 ring-1 ring-stone-300 hover:bg-white">ปิด</button>
+      </div>
+      <div className="mt-2 h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="#e7e5e4" />
+            <XAxis dataKey="date" tickFormatter={shortDay} minTickGap={32} tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={fmtShortBaht} width={56} domain={[0, "auto"]} tick={{ fontSize: 12 }} />
+            <Tooltip labelFormatter={thaiDay} formatter={(v, n) => [fmtBaht(v), n]} />
+            <Legend wrapperStyle={{ fontSize: 13 }} />
+            <Line name="ยอดจริง" dataKey="actual" stroke={INK} strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line name="ค่าปกติ" dataKey="expected" stroke={MUTED} strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} />
+            <ReferenceDot x={focus.date} y={focus.actual} r={7} fill={color} stroke="#fff" strokeWidth={2} ifOverflow="extendDomain" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function AnomalyCard({ daily, holidays }) {
   const [focus, setFocus] = useState(null);
   const result = useMemo(() => tryRun(() => scoreAnomalies(daily, holidays)), [daily, holidays]);
@@ -96,7 +178,8 @@ function AnomalyCard({ daily, holidays }) {
   return (
     <Card title="วันที่ยอดขายผิดปกติ 15 อันดับ"
           sub="เทียบกับค่ากลางของวันเดียวกันของสัปดาห์ใน 8 สัปดาห์ก่อน · ไม่นับวันหยุดราชการ">
-      {/* Lab 4.5B: เมื่อคลิกแถว (focus) ให้แสดงกราฟยอดจริงเทียบค่าปกติ ±4 สัปดาห์รอบวันนั้น */}
+      {/* Lab 4.5B: เมื่อคลิกแถว (focus) แสดงกราฟยอดจริงเทียบค่าปกติ ±4 สัปดาห์รอบวันนั้น · คลิกแถวเดิมซ้ำ = ปิด */}
+      {focus && <ZoomChart focus={focus} daily={daily} all={all} onClose={() => setFocus(null)} />}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[600px] text-sm tabular-nums">
           <thead className="text-left text-stone-500">
