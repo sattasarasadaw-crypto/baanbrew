@@ -23,6 +23,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Lab 4.2C · analytics: ผลวิเคราะห์ 5 เอกสาร (meta, daily, rfm, cohort, abc) ที่ pipeline สร้างไว้
+    // มีรหัสลูกค้าอยู่ใน rfm จึงต้องล็อกอินก่อนอ่าน · เขียนไม่ได้จากหน้าเว็บเลย
+    // (npm run analytics และ GitHub Actions ใช้ firebase-admin ซึ่งไม่ผ่าน rules จึงยังเขียนได้)
+    match /analytics/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     match /sales/{saleId} {
       // ล็อกอินแล้วอ่านได้
       allow read: if signedIn();
