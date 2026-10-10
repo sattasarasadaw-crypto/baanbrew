@@ -102,6 +102,11 @@ function SegmentList({ rfm, picked, onClose }) {
         </div>
       }
     >
+      {/* รีวิว Lab 4.3 ข้อ 5: CSV มีรหัสลูกค้าพร้อมพฤติกรรมการซื้อ จึงเตือนเรื่อง PDPA ตรงจุดที่ดาวน์โหลด */}
+      <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" role="note">
+        ⚠️ ไฟล์ CSV มีรหัสลูกค้ากับประวัติการซื้อ ซึ่งอาจเชื่อมโยงถึงตัวบุคคลได้ จึงเป็นข้อมูลส่วนบุคคลตาม PDPA
+        ใช้เฉพาะงานของร้าน (เช่น แคมเปญดึงลูกค้ากลับ) ไม่ส่งต่อหรืออัปโหลดขึ้นบริการภายนอก และลบทิ้งเมื่อใช้เสร็จ
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] text-sm">
           <thead className="text-left text-stone-500">
